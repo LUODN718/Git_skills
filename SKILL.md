@@ -1,168 +1,186 @@
 ---
 name: git-daily
-description: 用日常对话完成 Git 操作，像和同事说话一样。触发场景：用户说"帮我绑定 GitHub 仓库 / 帮我提交今天的代码 / 帮我总结 README / 拉一下远程最新的 / 看看同事的提交 / 切到某个分支 / 帮我回退"等口语化 Git 需求时使用。覆盖从初始化仓库、日常提交推送、README 自动生成到团队协作同步的全流程。
+description: Git 日常助手。只要用户提到 git、GitHub、commit、push、pull、merge、分支、提交、推送、拉取、合并、仓库、远程、clone、fork、PR、冲突、回退、reset、rebase、stash、cherry-pick、tag、标签、gitignore、init、remote、origin，或任何版本控制相关需求时都应触发。覆盖初始化仓库、绑定远程、日常提交、分支管理、合并冲突、协作同步、README 生成、历史查看等全场景。
 ---
 
 # Git Daily
 
-用户以日常口语下达指令，Agent 必须将口语翻译成正确的 Git 命令执行。Agent 应主动向用户确认缺少的关键信息（如仓库 URL、提交信息等），但不要问用户不需要回答的选项。
+用户以日常口语下达 Git 指令。Agent 将口语翻译成正确命令并执行，主动确认缺失信息，但不啰嗦。
 
-## 四大核心场景
+## 场景速查表
 
-### 场景一：绑仓库——第一次把本地项目连上 GitHub
-
-**触发词**：绑定 / 新建仓库 / GitHub 仓库 / 初始化仓库 / 连远程 / 上传到 GitHub
-
-**处理流程**：
-
-1. 检查当前目录是否已是 Git 仓库（`git status`）
-   - 如果不是，执行 `git init`
-2. 检查是否配置了 `user.name` 和 `user.email`（`git config user.name`）
-   - 如果未配置，向用户索要：GitHub 用户名、邮箱
-   - 执行 `git config user.name "xxx"` 和 `git config user.email "xxx@xxx.com"`
-   - 如果用户希望全局生效，加 `--global`
-3. 向用户索要 GitHub 仓库 URL（如 `https://github.com/用户名/仓库名.git`）
-4. 检查是否已有 `.gitignore`，如果没有，根据项目类型（前端/后端/Python等）建议生成一个
-5. 确保目录中有文件可提交（如果空的，建议创建一个 README.md）
-6. 执行 `git add .` → `git commit -m "初始提交"`
-7. 如果本地默认分支是 `master`，建议改为 `main`：`git branch -M main`
-8. 执行 `git remote add origin <URL>` → `git push -u origin main`
-9. 推送完成后，告知用户绑定成功，并简要说明之后的操作方式
-
-**示例对话**：
-
-> 用户："我刚在 GitHub 建了个空仓库 https://github.com/LUODN718/Test.git，帮我绑一下"
->
-> Agent：检查仓库状态 → 若缺少用户配置就询问 → 初始化 → 首次提交 → 关联远程 → 推送 → 告知成功
-
-> 用户："绑定一下 GitHub"
->
-> Agent：检查用户配置 → 询问仓库 URL → 其余同上
+| 用户说 | Agent 做什么 |
+|--------|-------------|
+| 帮我提交 / commit / push / 推上去 | add → 建议/用提交信息 → commit → push |
+| 绑定仓库 / 连 GitHub / 初始化 | 检查配置→要URL→init→commit→remote→push |
+| 看看远程有啥 / 同步一下 / pull | fetch→展示差异→建议操作→执行 |
+| 帮我写 README / 总结项目 | 扫描项目→识别技术栈→生成README |
+| 新建分支 / 切换分支 / 删分支 | 按需执行，切换前提醒暂存未保存改动 |
+| 合并 / merge / rebase | 执行合并，冲突时展示并引导解决 |
+| 回退 / 撤销 / 回到上次 | 默认安全方式（--soft/revert），确认后才 --hard |
+| 暂存一下 / stash / 切去修 bug | stash→切分支；修完 pop 回来 |
+| 看看日志 / 谁改的 / 历史 | log / blame / diff |
+| cherry-pick / 摘提交 | 确认提交哈希→执行 |
+| 打 tag / 标签 / 发版本 | 打标签→推送 |
+| gitignore / 忽略文件 | 根据项目类型生成 .gitignore |
+| 这个文件谁改的 / 什么时候改的 | git blame / git log |
+| 刚才提交写错了 / 改提交信息 | 展示最近提交→amend |
+| 怎么把分支推上去 / 第一次 push | git push -u origin 分支名 |
+| 删远程分支 / 清理分支 | 确认后删除本地和远程分支 |
+| 我 clone 下来的项目怎么开始 | git switch -c 分支名 或 建议工作流 |
+| fork 之后怎么同步上游 | 添加 upstream→fetch→merge |
 
 ---
 
-### 场景二：日常提交推送——写完代码存档并上传
+## 一、初始化与绑定
 
-**触发词**：提交 / commit / push / 推上去 / 上传 / 保存一下 / 存档
+**触发**：绑定 / 新建仓库 / GitHub 仓库 / 初始化 / 连远程 / 上传 / clone 下来怎么弄
 
-**处理流程**：
-
-1. 运行 `git status` 查看当前改动
-2. 把改动文件列表展示给用户，简要说明改了什么
-3. 提交信息策略（按用户输入灵活处理）：
-   - 用户给了提交信息 → 直接用
-   - 用户没给 → 观察 `git diff` 的改动内容，自动生成一条合理的中文提交信息，展示给用户确认
-   - 如果改动较多，可分阶段提交（建议用户"先提交 A 再提交 B"）
-4. 执行 `git add .`（或指定文件）→ `git commit -m "信息"`
-5. 检查当前分支是否已绑定远程上游：
-   - 如果未绑定 → 执行 `git push -u origin 当前分支名`
-   - 如果已绑定 → 执行 `git push`
-6. 如果 push 被拒绝（远程有更新），先 `git pull --rebase` 再推送
-
-**重要约束**：
-- 不要擅自 `git push --force`，除非用户明确要求
-- 如果当前在 `main` 分支上直接修改，提醒用户"建议在功能分支上开发"（但不要阻止）
-
-**示例对话**：
-
-> 用户："帮我把今天写的提交一下"
->
-> Agent：展示 status → 展示 diff 摘要 → 建议提交信息 → 用户确认 → add → commit → push
-
-> 用户："提交，信息写 修复登录页面样式错乱"
->
-> Agent：直接 add → commit → push
+**流程**：
+1. `git status` 检查是否已是仓库。不是则 `git init`
+2. `git config user.name` / `user.email` 检查身份。未配置则询问
+3. 若用户未提供远程 URL，询问 GitHub 仓库地址
+4. 检查 `.gitignore`，没有则根据项目类型建议生成
+5. 空目录则建议创建 README.md
+6. `git add .` → `git commit -m "初始提交"`
+7. 若默认分支是 `master`，建议 `git branch -M main`
+8. `git remote add origin <URL>` → `git push -u origin main`
 
 ---
 
-### 场景三：自动总结 README——生成项目介绍文档
+## 二、日常提交推送
 
-**触发词**：README / 项目介绍 / 写个说明 / 总结文档 / 给别人看
+**触发**：提交 / commit / push / 推上去 / 上传 / 保存 / 存档
 
-**处理流程**：
+**流程**：
+1. `git status` 查看改动
+2. 展示改动文件列表和摘要
+3. 提交信息处理：
+   - 用户给了信息 → 直接用
+   - 没给 → 根据 `git diff` 自动生成中文信息，展示确认
+   - 改动多 → 建议分阶段提交
+4. `git add .` → `git commit -m "信息"`
+5. 检查远程上游：未绑定则 `git push -u origin 分支名`，已绑定则 `git push`
+6. push 被拒 → `git pull --rebase` 再推
 
-1. 扫描项目根目录和关键子目录的文件结构
-2. 识别项目类型（前端/后端/全栈/脚本/其他）
-3. 读取关键入口文件（如 `package.json`、`pom.xml`、`requirements.txt`、`README.md` 等），提取项目名、技术栈、依赖
-4. 读取已有 README.md 的内容（如果存在），在其基础上补充而非覆盖
-5. 生成的 README.md 应包含：
-   - 项目名称和一句话简介
-   - 技术栈
-   - 项目结构（简要目录树）
-   - 如何运行（安装依赖 → 启动命令）
-   - 主要功能模块（如有）
-   - 协作说明（如何分支、提交规范等，可选）
-6. 生成后展示给用户确认，再写入 `README.md`
-
-**重要约束**：
-- 只总结项目本身，不要编造不存在的功能
-- 运行命令必须从实际项目文件中获取，不要瞎编
-- 如果已有 README，保留原有有效内容，只补充缺失部分
-- 不要覆盖用户手写的个性化内容（如团队名称、特殊说明等）
-
-**示例对话**：
-
-> 用户："帮我总结一下项目，写个 README"
->
-> Agent：扫描项目 → 识别为 Spring Boot + Vue 全栈项目 → 生成 README 草稿 → 展示 → 用户确认 → 写入
+**约束**：不擅自 `--force`；在 main 直接改时友好提醒但不阻止。
 
 ---
 
-### 场景四：协作同步——早上检查、拉同事代码
+## 三、协作同步
 
-**触发词**：同步 / 拉取 / pull / 看看同事的 / 检查分支 / 远程有什么 / fetch / 早上更新
+**触发**：同步 / 拉取 / pull / 看看同事 / 检查分支 / 远程 / fetch / 早上更新
 
-**处理流程**：
+**流程**：
+1. `git fetch origin`
+2. 展示：当前分支、远程分支列表、ahead/behind 状态
+3. 远程有新提交则 `git log HEAD..origin/分支 --oneline` 列出
+4. 给出建议：ahead→推送？behind→拉取？diverged→询问处理
+5. 执行 pull/push
 
-1. 先执行 `git fetch origin`（不合并，安全地查看远程更新）
-2. 展示信息：
-   - 当前在哪个分支
-   - 远程有哪些分支更新了（`git branch -r`）
-   - 当前分支与远程的差异（`git status` 查看 ahead/behind）
-   - 如果有新提交，列出远程新增的提交信息（`git log HEAD..origin/当前分支 --oneline`）
-3. 根据情况给建议：
-   - 如果只是 ahead → "本地比远程多了 N 个提交，要推送吗？"
-   - 如果只是 behind → "远程有 N 个新提交，要拉取吗？"（`git pull --rebase`）
-   - 如果 diverged → 提醒用户有分歧，询问如何处理
-   - 如果 clean → "已经是最新的"
-4. 用户确认后执行 pull 或 push
-
-**其他协作相关子场景**：
-
-- **查看同事的分支**：`git branch -r` 列出远程分支，`git log origin/分支名 --oneline -5` 查看最近提交
-- **基于同事分支创建本地分支**：`git switch -c 本地名 origin/同事分支名`
-- **查看两个分支的差异**：`git diff 分支A..分支B --stat` 展示文件级差异
-
-**示例对话**：
-
-> 用户："检查一下远程有什么更新"
->
-> Agent：fetch → 展示当前分支状态 → "远程有 3 个新提交，是同事昨天推的，要拉下来吗？"
-
-> 用户："看看小王的分支写了什么"
->
-> Agent：列出远程分支 → 找到小王的分支 → 展示最近 5 条提交信息
+**子场景**：
+- 看同事分支：`git branch -r` → `git log origin/分支 --oneline -5`
+- 基于远程分支建本地：`git switch -c 本地名 origin/远程名`
+- 比较分支差异：`git diff 分支A..分支B --stat`
 
 ---
 
-### 场景五：辅助操作——分支管理、回退、查看历史
+## 四、分支管理
 
-**触发词**：切换分支 / 新建分支 / 删分支 / 回退 / 撤销 / 看看日志 / 合并 / rebase
+**触发**：分支 / branch / 新建 / 切换 / 删除 / 重命名
 
-这些属于标准 Git 操作，Agent 直接翻译执行即可，但仍需遵循以下规则：
-
-- **切换分支前**：检查是否有未保存的改动，如有则提醒用户（或执行 `git stash`）
-- **回退操作**：默认使用安全方式（`--soft` 保留改动，`git revert` 而非 `reset`）
-- **删除分支**：先检查是否已合并，未合并则提醒
-- **合并分支**：优先使用 `git merge`，除非用户明确说 rebase
-- **冲突处理**：发生冲突时，展示冲突文件列表和冲突内容，等待用户指示如何解决
+- 切换前检查未保存改动，提醒 stash
+- 创建：`git switch -c 分支名`
+- 切换：`git switch 分支名`
+- 删除：先检查是否合并，未合并则提醒，确认后 `git branch -d/-D`
+- 重命名：`git branch -m 旧名 新名`
+- 列出：`git branch -a`（本地+远程）
 
 ---
 
-## 通用行为准则
+## 五、合并与冲突
 
-1. **先看后动**：执行任何修改操作前，先用 `git status` / `git fetch` / `git diff` 查看现状
-2. **主动确认**：缺少关键信息时主动问（URL、用户名、邮箱、提交信息），但用自然语言问，不要列选项
-3. **解释做了什么**：每步操作完成后，用一句话告诉用户发生了什么
-4. **安全优先**：默认不做破坏性操作（`--force`、`--hard`、删除未合并分支），除非用户明确要求
-5. **语言风格**：用中文口语回复，像同事交流，不要输出大段英文命令除非用户要求
+**触发**：合并 / merge / rebase / 冲突
+
+- 默认 `git merge`，除非用户明确说 rebase
+- 冲突时：展示冲突文件和内容，标注冲突来源，引导用户逐文件解决
+- 放弃合并：`git merge --abort` / `git rebase --abort`
+- rebase 黄金法则提醒：公共分支别 rebase
+
+---
+
+## 六、回退与撤销
+
+**触发**：回退 / 撤销 / 回到 / 取消 / 恢复 / reset / revert
+
+**安全等级**：
+- 仅撤销工作区改动（未 add）：`git checkout -- 文件` 或 `git restore 文件`
+- 撤销 add（未 commit）：`git reset HEAD 文件`
+- 撤销最近提交保留改动：`git reset --soft HEAD~1`
+- 撤销最近提交丢弃改动（危险）：确认后才 `git reset --hard HEAD~1`
+- 安全回退已推送提交：`git revert 提交哈希`
+
+---
+
+## 七、暂存切换
+
+**触发**：暂存 / stash / 打断 / 切去修 bug / 打断一下
+
+1. `git stash` 暂存当前改动
+2. 切到目标分支处理
+3. 处理完切回原分支，`git stash pop` 恢复
+
+---
+
+## 八、查看历史
+
+**触发**：日志 / 历史 / 谁改的 / 什么时候 / log / blame / diff
+
+- 提交历史：`git log --oneline --graph -N`
+- 文件改动者：`git blame 文件`
+- 某次提交详情：`git show 提交哈希`
+- 两个分支差异：`git diff 分支A..分支B`
+
+---
+
+## 九、标签管理
+
+**触发**：tag / 标签 / 版本 / 发版
+
+- 打标签：`git tag -a v1.0 -m "说明"`
+- 推送标签：`git push origin v1.0` 或 `git push --tags`
+- 删除标签：`git tag -d v1.0` + `git push origin --delete v1.0`
+
+---
+
+## 十、README 生成
+
+**触发**：README / 项目介绍 / 说明文档 / 总结项目
+
+1. 扫描项目目录结构和关键配置文件
+2. 识别技术栈和项目类型
+3. 生成包含：项目名、简介、技术栈、目录结构、启动方式、功能模块
+4. 已有 README 则补充而非覆盖
+5. 展示确认后写入
+
+---
+
+## 十一、高级操作
+
+**cherry-pick**：用户指定提交哈希，`git cherry-pick 哈希`
+
+**amend**：修改最近提交信息或补充遗漏文件，`git commit --amend`
+
+**gitignore**：根据项目类型（Node/Python/Java/Go 等）生成对应的 `.gitignore`
+
+**fork 同步**：添加上游 `git remote add upstream 原仓库URL` → `git fetch upstream` → `git merge upstream/main`
+
+---
+
+## 通用准则
+
+1. **先看后动**：修改前必查 `git status`
+2. **主动确认**：缺信息就问，用自然语言
+3. **解释结果**：每步完了一句话告知
+4. **安全优先**：不擅自 `--force`、`--hard`、删未合并分支
+5. **中文口语**：像同事聊天，不输出大段英文
