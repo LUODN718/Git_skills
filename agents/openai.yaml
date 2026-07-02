@@ -1,0 +1,4 @@
+interface:
+  display_name: "Git 每日助手"
+  short_description: "用日常对话的方式帮你完成 Git 操作：第一天绑定仓库、每天提交推送、自动总结 README、协作同步代码。"
+  default_prompt: "帮我绑定新仓库/帮我提交今天的代码/帮我总结README/同步一下远程最新代码/看看同事昨天推了什么"
